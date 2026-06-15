@@ -1,273 +1,161 @@
-(() => {
-  // Data
-  const rarities = [
-    {name:'Common', prob:40, coins:10, color:'#9ca3af'},
-    {name:'Uncommon', prob:25, coins:25, color:'#22c55e'},
-    {name:'Rare', prob:15, coins:60, color:'#3b82f6'},
-    {name:'Epic', prob:8, coins:150, color:'#a855f7'},
-    {name:'Legendary', prob:5, coins:400, color:'#f59e0b'},
-    {name:'Mythic', prob:3, coins:1000, color:'#ef4444'},
-    {name:'Divine', prob:2, coins:3000, color:'#eab308'},
-    {name:'Celestial', prob:1.2, coins:8000, color:'#22d3ee'},
-    {name:'Transcendent', prob:0.6, coins:25000, color:'#d946ef'},
-    {name:'Impossible', prob:0.19, coins:100000, color:'#ffffff'},
-    {name:'???', prob:0.01, coins:1000000, color:'#ff2bd6'},
-  ];
-  const elements = ['Fire','Water','Earth','Air','Lightning','Ice','Light','Shadow','Nature','Metal','Void','Crystal'];
-  const items = ['Dragon','Phoenix','Wolf','Serpent','Titan','Golem','Spirit','Blade','Crown','Orb','Knight','Hydra','Griffin','Leviathan','Wraith','Angel','Demon','Samurai','Wizard','Beast'];
+// RNG Dice v0.0.1
+const rarities = [
+  {name:'Common', w:40, coins:1, color:'#94a3b8'},
+  {name:'Uncommon', w:22, coins:3, color:'#22c55e'},
+  {name:'Rare', w:15, coins:8, color:'#3b82f6'},
+  {name:'Epic', w:9, coins:20, color:'#a855f7'},
+  {name:'Legendary', w:5.5, coins:50, color:'#f97316'},
+  {name:'Mythic', w:3.5, coins:120, color:'#ec4899'},
+  {name:'Divine', w:2, coins:300, color:'#eab308'},
+  {name:'Celestial', w:1.2, coins:750, color:'#22d3ee'},
+  {name:'Transcendent', w:0.7, coins:2000, color:'#ff00ff'},
+  {name:'Impossible', w:0.4, coins:5000, color:'#ffffff'},
+  {name:'Glitched', w:0.1, coins:15000, color:'#00ff88'},
+  {name:'???', w:0.01, coins:100000, color:'#ff0044'},
+];
+const elementsBase = ['Fire','Water','Earth','Air','Lightning','Ice','Shadow','Light'];
+const elementsExtra = ['Nature','Void','Crystal','Metal','Poison','Holy','Chaos'];
+const creatures = ['Dragon','Phoenix','Wolf','Serpent','Golem','Spirit','Titan','Kitsune','Kraken','Griffin'];
 
-  // State (memory only)
-  const state = {
-    coins:0,
-    rolls:0,
-    best:null,
-    bestValue:0,
-    activeRolls:0,
-    history:[],
-    collection:[],
-    autoInterval:null,
-    upgrades:{
-      lucky:{key:'lucky', name:'Lucky Charm', desc:'+4% chance to upgrade rarity per level', level:0, cost:100, base:100, mult:1.7},
-      magnet:{key:'magnet', name:'Coin Magnet', desc:'+25% coins per level', level:0, cost:150, base:150, mult:1.8},
-      critical:{key:'critical', name:'Critical Roll', desc:'+3% chance for 3x coins per level', level:0, cost:300, base:300, mult:2.0},
-      fortune:{key:'fortune', name:'Fortune Dice', desc:'+15% coins on Rare+ per level', level:0, cost:500, base:500, mult:2.2},
-      auto:{key:'auto', name:'Auto Roller', desc:'Unlocks faster auto roll', level:0, cost:1000, base:1000, mult:2.5},
-      speed:{key:'speed', name:'Speed Boost', desc:'-100ms roll time per level (min 400ms)', level:0, cost:750, base:750, mult:1.9},
-      multi:{key:'multi', name:'Multi Roll', desc:'+1 roll per click per level', level:0, cost:2000, base:2000, mult:3.0},
-    }
-  };
+let state = JSON.parse(localStorage.getItem('rng-dice-v1')||'{}');
+state.coins = state.coins||0;
+state.rolls = state.rolls||0;
+state.best = state.best||null;
+state.pity = state.pity||0;
+state.upgrades = state.upgrades||{luck:0, magnet:0, auto:0, elem:0, crit:0, gold:0};
+state.history = state.history||[];
+state.collection = state.collection||{};
 
-  // Elements
-  const $coins = document.getElementById('coins');
-  const $rolls = document.getElementById('rolls');
-  const $best = document.getElementById('best');
-  const $collection = document.getElementById('collection');
-  const $history = document.getElementById('history');
-  const $upgrades = document.getElementById('upgrades');
-  const $result = document.getElementById('lastResult');
-  const $debug = document.getElementById('debug');
-  const $cube = document.getElementById('cube');
-  const $diceBtn = document.getElementById('diceBtn');
-  const $rollBtn = document.getElementById('rollBtn');
-  const $roll10Btn = document.getElementById('roll10Btn');
-  const $autoBtn = document.getElementById('autoBtn');
+const $ = id=>document.getElementById(id);
+function save(){localStorage.setItem('rng-dice-v1', JSON.stringify(state))}
+function fmt(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':Math.floor(n).toString()}
 
-  // Utils
-  const fmt = n => new Intl.NumberFormat().format(Math.floor(n));
-  const getRollTime = () => Math.max(400, 1200 - state.upgrades.speed.level * 100);
+function getElements(){
+  const unlocked = [...elementsBase];
+  if(state.upgrades.elem>=1) unlocked.push(...elementsExtra.slice(0,3));
+  if(state.upgrades.elem>=2) unlocked.push(...elementsExtra.slice(3,5));
+  if(state.upgrades.elem>=3) unlocked.push(...elementsExtra.slice(5));
+  return unlocked;
+}
 
-  function pickRarityIndex(){
-    const r = Math.random()*100;
+function weightedRarity(){
+  const luckShift = state.upgrades.luck * 3;
+  const weights = rarities.map((r,i)=>{
+    let w = r.w;
+    if(i===0) w = Math.max(5, w - luckShift);
+    else w = w + luckShift * (r.w / 60);
+    return w;
+  });
+  if(state.pity>=50){
+    const epicPlus = weights.slice(3).reduce((a,b)=>a+b,0);
+    const roll = Math.random()*epicPlus;
     let acc=0;
-    for(let i=0;i<rarities.length;i++){ acc+=rarities[i].prob; if(r<acc) return i; }
-    return rarities.length-1;
+    for(let i=3;i<weights.length;i++){acc+=weights[i]; if(roll<acc) return i;}
   }
+  const total = weights.reduce((a,b)=>a+b,0);
+  let r = Math.random()*total, acc=0;
+  for(let i=0;i<weights.length;i++){acc+=weights[i]; if(r<acc) return i;}
+  return 0;
+}
 
-  function updateDebug(){
-    $debug.textContent = state.activeRolls>0 ? `Rolling… (${state.activeRolls})` : 'Ready';
+function roll(){
+  state.rolls++;
+  const ri = weightedRarity();
+  const rarity = rarities[ri];
+  const elems = getElements();
+  const element = elems[Math.floor(Math.random()*elems.length)];
+  const creature = creatures[Math.floor(Math.random()*creatures.length)];
+
+  let coins = rarity.coins;
+  const mults=[1,1.2,1.5,2,3,5];
+  coins *= mults[state.upgrades.magnet];
+  coins *= 1 + state.upgrades.elem*0.1;
+  let isCrit = false;
+  if(state.upgrades.crit && Math.random()<0.07){coins*=3; isCrit=true;}
+  if(state.upgrades.gold && Math.random()<0.02){
+    const ri2 = weightedRarity();
+    if(ri2>ri){return roll();}
   }
+  coins = Math.floor(coins);
+  state.coins += coins;
 
-  // Confetti
-  const cvs = document.getElementById('confetti');
-  const ctx = cvs.getContext('2d');
-  let particles = [];
-  let confettiRunning = false;
-  function resize(){ cvs.width = innerWidth; cvs.height = innerHeight; }
-  addEventListener('resize', resize); resize();
-  function burstConfetti(){
-    const cx = innerWidth*0.5, cy = innerHeight*0.33;
-    for(let i=0;i<120;i++){
-      particles.push({
-        x:cx, y:cy,
-        vx:(Math.random()-0.5)*9,
-        vy:-Math.random()*9-2,
-        life:80+Math.random()*40,
-        size:5+Math.random()*7,
-        rot:Math.random()*360,
-        vr:(Math.random()-0.5)*12,
-        color:`hsl(${Math.floor(Math.random()*360)} 100% 62%)`
-      });
-    }
-    if(!confettiRunning){ confettiRunning=true; requestAnimationFrame(tick); }
-    function tick(){
-      ctx.clearRect(0,0,cvs.width,cvs.height);
-      particles = particles.filter(p=>p.life>0);
-      for(const p of particles){
-        p.life--; p.vy+=0.24; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
-        ctx.save();
-        ctx.translate(p.x,p.y);
-        ctx.rotate(p.rot*Math.PI/180);
-        ctx.globalAlpha = Math.max(0, p.life/120);
-        ctx.fillStyle = p.color;
-        ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.65);
-        ctx.restore();
-      }
-      if(particles.length){ requestAnimationFrame(tick); } else { confettiRunning=false; ctx.clearRect(0,0,cvs.width,cvs.height); }
-    }
+  if(ri>=3) state.pity=0; else state.pity++;
+
+  const key = rarity.name+'|'+element;
+  state.collection[key]=true;
+
+  const resultStr = `${rarity.name.toUpperCase()} ${element.toUpperCase()} ${creature.toUpperCase()}`;
+  if(!state.best || ri > rarities.findIndex(r=>r.name===state.best?.rarity)) state.best={rarity:rarity.name, text:resultStr};
+
+  $('result').textContent = resultStr;
+  $('result').style.color = rarity.color;
+  $('result').classList.remove('glow'); void $('result').offsetWidth; $('result').classList.add('glow');
+  $('coins').textContent = fmt(state.coins);
+  $('rolls').textContent = state.rolls;
+  $('best').textContent = state.best.text;
+  $('pity').textContent = state.pity;
+  $('mult').textContent = 'x'+mults[state.upgrades.magnet].toFixed(1);
+
+  const f=document.createElement('div'); f.className='floating'; f.textContent='+'+fmt(coins)+(isCrit?' CRIT!':''); f.style.left=(window.innerWidth/2)+'px'; f.style.top='200px'; f.style.color=rarity.color; document.body.appendChild(f); setTimeout(()=>f.remove(),1000);
+
+  state.history.unshift({t:Date.now(), txt:resultStr, color:rarity.color, coins});
+  state.history = state.history.slice(0,20);
+  $('history').innerHTML = state.history.map(h=>`<div style="color:${h.color}">• ${h.txt} <span style="opacity:.7">+${fmt(h.coins)}</span></div>`).join('');
+
+  $('collection').innerHTML = Object.keys(state.collection).map(k=>{const [r,e]=k.split('|'); const col=rarities.find(x=>x.name===r)?.color||'#fff'; return `<span class="pill" style="border-color:${col};color:${col}">${e}</span>`}).join('');
+
+  if(ri>=4){confetti(rarity.color)}
+
+  save();
+  updateShop();
+}
+
+function confetti(color){
+  for(let i=0;i<30;i++){
+    const p=document.createElement('div'); p.style.position='fixed'; p.style.left=Math.random()*window.innerWidth+'px'; p.style.top='-10px'; p.style.width='6px'; p.style.height='6px'; p.style.background=color; p.style.opacity='.9'; p.style.transition='transform 1.2s linear, opacity 1.2s'; document.body.appendChild(p);
+    setTimeout(()=>{p.style.transform=`translateY(${window.innerHeight+20}px) rotate(${Math.random()*720}deg)`; p.style.opacity='0'},10);
+    setTimeout(()=>p.remove(),1300);
   }
+}
 
-  // Core roll
-  function performRoll(){
-    state.activeRolls++; updateDebug();
+const shopData = [
+  {id:'luck', name:'Lucky Dice', max:5, costs:[50,250,1200,6000,25000], desc:l=>' -'+(l*3)+'% Common'},
+  {id:'magnet', name:'Coin Magnet', max:5, costs:[100,500,2500,10000,50000], desc:l=>['','x1.2','x1.5','x2','x3','x5'][l+1]},
+  {id:'auto', name:'Auto Roller', max:4, costs:[2000,5000,15000,50000], desc:l=>['Off','1/3s','1/s','3/s','10/s'][l+1]},
+  {id:'elem', name:'Elemental Mastery', max:3, costs:[1500,8000,40000], desc:l=>'+'+((l+1)*5)+' elements'},
+  {id:'crit', name:'Critical Surge', max:1, costs:[3000], desc:()=> '7% 3x coins'},
+  {id:'gold', name:'Golden Touch', max:1, costs:[15000], desc:()=> '2% double roll'},
+];
 
-    const rollTime = getRollTime();
-    // visual spin
-    const rx = 360 + Math.floor(Math.random()*1440);
-    const ry = 360 + Math.floor(Math.random()*1440);
-    const rz = Math.floor(Math.random()*360);
-    $cube.style.transitionDuration = rollTime+'ms';
-    $cube.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg)`;
+function updateShop(){
+  $('shop').innerHTML = shopData.map(s=>{
+    const lvl = state.upgrades[s.id];
+    const maxed = lvl>=s.max;
+    const cost = maxed?'-':s.costs[lvl];
+    return `<div class="item"><div><b>${s.name} ${lvl}/${s.max}</b><div style="opacity:.7;font-size:12px">${s.desc(lvl)}</div></div><button ${maxed||state.coins<cost?'disabled':''} onclick="buy('${s.id}')">${maxed?'MAX':cost}</button></div>`;
+  }).join('');
+}
 
-    // pick
-    let rIdx = pickRarityIndex();
-    // Lucky Charm upgrades
-    const lucky = state.upgrades.lucky.level;
-    for(let i=0;i<lucky;i++){ if(Math.random()<0.04 && rIdx<rarities.length-1) rIdx++; }
-    const rarity = rarities[rIdx];
-    const element = elements[(Math.random()*elements.length)|0];
-    const item = items[(Math.random()*items.length)|0];
+function buy(id){
+  const s=shopData.find(x=>x.id===id); const lvl=state.upgrades[id]; const cost=s.costs[lvl];
+  if(state.coins>=cost){state.coins-=cost; state.upgrades[id]++; save(); $('coins').textContent=fmt(state.coins); updateShop(); startAuto();}
+}
+window.buy=buy;
 
-    let coins = rarity.coins;
-    coins *= (1 + state.upgrades.magnet.level*0.25);
-    let isCrit = false;
-    if(Math.random() < state.upgrades.critical.level*0.03){ coins *= 3; isCrit = true; }
-    if(rIdx>=2){ coins *= (1 + state.upgrades.fortune.level*0.15); }
-    coins = Math.floor(coins);
+let autoTimer=null;
+function startAuto(){
+  if(autoTimer) clearInterval(autoTimer);
+  const lvl=state.upgrades.auto;
+  if(!lvl) return;
+  const speeds=[0,3333,1000,333,100];
+  autoTimer=setInterval(roll, speeds[lvl]);
+}
 
-    state.coins += coins;
-    state.rolls++;
+$('dice').onclick=roll;
+$('rollBtn').onclick=roll;
+window.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();roll()}});
 
-    if(coins > state.bestValue){ state.bestValue = coins; state.best = `${rarity.name} ${element} ${item}`; }
-
-    state.history.push({rarity:rarity.name, element, item, coins, color:rarity.color, crit:isCrit});
-    if(state.history.length>200) state.history.shift();
-
-    if(rIdx>=2){
-      const key = `${rarity.name}-${element}-${item}`;
-      if(!state.collection.some(c=>c.key===key)){
-        state.collection.push({key, rarity:rarity.name, element, item, color:rarity.color});
-        if(state.collection.length>120) state.collection.shift();
-      }
-    }
-
-    // Reveal after animation
-    setTimeout(()=>{
-      $result.innerHTML = `
-        <div class="res-rarity" style="color:${rarity.color};text-shadow:0 0 14px ${rarity.color}">${rarity.name.toUpperCase()}</div>
-        <div class="res-name">${element} ${item}</div>
-        <div class="res-coins">+${fmt(coins)} coins ${isCrit?'<span class="crit">CRIT x3!</span>':''}</div>
-      `;
-      $result.style.animation='none'; void $result.offsetWidth; $result.style.animation='pop .28s ease';
-
-      if(rIdx>=5) burstConfetti();
-
-      state.activeRolls--; updateDebug(); render();
-    }, rollTime);
-
-    // immediate HUD update for responsiveness
-    render(false);
-  }
-
-  function doMultiRoll(){
-    const count = 1 + state.upgrades.multi.level;
-    for(let i=0;i<count;i++){
-      // slight stagger to keep canvas smooth under spam
-      setTimeout(performRoll, i*45);
-    }
-  }
-
-  // Debounce for manual clicks (100ms)
-  let lastClick = 0;
-  function tryManualRoll(){
-    const now = Date.now();
-    if(now - lastClick < 100) return;
-    lastClick = now;
-    doMultiRoll();
-  }
-
-  // Render
-  function render(full=true){
-    $coins.textContent = fmt(state.coins);
-    $rolls.textContent = fmt(state.rolls);
-    $best.textContent = state.best ? `${state.best} (${fmt(state.bestValue)})` : '—';
-
-    if(full){
-      // Upgrades
-      $upgrades.innerHTML = Object.values(state.upgrades).map(u=>`
-        <div class="upgrade">
-          <div class="u-top"><b>${u.name}</b><span class="lvl">Lv.${u.level}</span></div>
-          <div class="u-desc">${u.desc}</div>
-          <button class="u-buy" data-key="${u.key}" ${state.coins < u.cost ? 'disabled':''}>Buy — ${fmt(u.cost)}</button>
-        </div>
-      `).join('');
-      $upgrades.querySelectorAll('.u-buy').forEach(btn=>{
-        btn.onclick = ()=>buyUpgrade(btn.dataset.key);
-      });
-
-      // Collection (show newest first, only Rare+)
-      const cols = state.collection.slice(-48).reverse();
-      $collection.innerHTML = cols.length ? cols.map(c=>`
-        <div class="collect-item" style="--c:${c.color}">
-          <b>${c.rarity}</b>
-          <span>${c.element} ${c.item}</span>
-        </div>
-      `).join('') : `<div class="collect-item" style="--c:#7c8cff"><b>No rares yet</b><span>Roll to discover Rare+ items</span></div>`;
-
-      // History
-      const h = state.history.slice(-40).reverse();
-      $history.innerHTML = h.map(x=>`
-        <div class="h-item" title="${x.rarity} ${x.element} ${x.item} • +${fmt(x.coins)}" style="color:${x.color}; border-color:${x.color}66; background:${x.color}18">
-          ${x.rarity[0]}${x.element[0]}
-        </div>
-      `).join('');
-    }
-  }
-
-  function buyUpgrade(key){
-    const u = state.upgrades[key];
-    if(!u) return;
-    if(state.coins < u.cost) return;
-    state.coins -= u.cost;
-    u.level++;
-    u.cost = Math.floor(u.base * Math.pow(u.mult, u.level));
-    // Auto button state
-    if(key==='auto') updateAutoButton();
-    render();
-  }
-
-  // Controls
-  $diceBtn.addEventListener('click', tryManualRoll);
-  $diceBtn.addEventListener('keydown', e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); tryManualRoll(); }});
-  $rollBtn.addEventListener('click', tryManualRoll);
-  $roll10Btn.addEventListener('click', ()=>{
-    // Queue 10 multi-rolls, bypassing the 100ms manual debounce
-    for(let i=0;i<10;i++) setTimeout(doMultiRoll, i*65);
-  });
-
-  function updateAutoButton(){
-    const on = !!state.autoInterval;
-    $autoBtn.textContent = on ? 'AUTO: ON' : (state.upgrades.auto.level>0 ? 'AUTO: OFF' : 'AUTO: LOCKED');
-    $autoBtn.disabled = state.upgrades.auto.level===0;
-  }
-
-  $autoBtn.addEventListener('click', ()=>{
-    if(state.upgrades.auto.level===0){
-      $result.innerHTML = `<div class="res-rarity" style="color:#ff7ac6">LOCKED</div><div class="res-name">Buy Auto Roller first</div><div class="res-coins">Cost: ${fmt(state.upgrades.auto.cost)}</div>`;
-      return;
-    }
-    if(state.autoInterval){
-      clearInterval(state.autoInterval); state.autoInterval=null;
-    }else{
-      const speed = Math.max(220, 1800 - state.upgrades.auto.level*280 - state.upgrades.speed.level*60);
-      state.autoInterval = setInterval(doMultiRoll, speed);
-    }
-    updateAutoButton();
-  });
-
-  // Initial render
-  render();
-  updateAutoButton();
-  updateDebug();
-
-  // Safety: ensure rapid clicks never lock – we never use a global rolling flag, only timestamp debounce for manual input.
-})();
+// init
+$('coins').textContent=fmt(state.coins); $('rolls').textContent=state.rolls; $('best').textContent=state.best?.text||'-'; $('pity').textContent=state.pity; updateShop(); startAuto();
+if(state.history.length){$('history').innerHTML = state.history.map(h=>`<div style="color:${h.color}">• ${h.txt}</div>`).join('')}
+$('collection').innerHTML = Object.keys(state.collection).map(k=>{const [r,e]=k.split('|'); const col=rarities.find(x=>x.name===r)?.color||'#fff'; return `<span class="pill" style="border-color:${col};color:${col}">${e}</span>`}).join('');
