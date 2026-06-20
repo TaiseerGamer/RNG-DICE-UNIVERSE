@@ -1,28 +1,35 @@
 :root { --bg:#0b0f1a; --panel:#121a2b; --text:#e6f0ff; --accent:#7dd3fc; }
 *{box-sizing:border-box}
 body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:radial-gradient(1200px 800px at 50% -10%,#1a2440 0%,#0b0f1a 60%);color:var(--text);display:flex;flex-direction:column;min-height:100vh}
-header{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:14px 18px;background:rgba(18,26,43,.7);backdrop-filter:blur(8px);border-bottom:1px solid #1f2a44;position:sticky;top:0}
-.stat{background:#0f172a;padding:8px 12px;border-radius:10px;border:1px solid #1e293b;min-width:120px;text-align:center}
+header{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:14px 18px;background:rgba(18,26,43,.7);backdrop-filter:blur(8px);border-bottom:1px solid #1f2a44;position:sticky;top:0;flex-wrap:wrap}
+.stat{background:#0f172a;padding:8px 12px;border-radius:10px;border:1px solid #1e293b;min-width:110px;text-align:center}
 .stat b{display:block;font-size:12px;opacity:.7}
-main{display:grid;grid-template-columns:1fr 320px;gap:18px;padding:18px;flex:1}
+main{display:grid;grid-template-columns:1fr 340px;gap:18px;padding:18px;flex:1}
 .center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
-.dice{width:140px;height:140px;border-radius:24px;background:linear-gradient(145deg,#1e293b,#0f172a);border:2px solid #334155;box-shadow:0 10px 30px rgba(0,0,0,.5), inset 0 0 30px rgba(125,211,252,.15);display:grid;place-items:center;cursor:pointer;user-select:none;transition:transform.1s}
+.dice-wrap{perspective:800px}
+.dice{width:140px;height:140px;border-radius:24px;background:linear-gradient(145deg,#1e293b,#0f172a);border:2px solid #334155;box-shadow:0 10px 30px rgba(0,0,0,.5), inset 0 0 30px rgba(125,211,252,.15);display:grid;place-items:center;cursor:pointer;user-select:none;transition:transform .1s;transform-style:preserve-3d}
 .dice:active{transform:scale(.96)}
-.dice.face{font-size:64px}
-.roll-btn{padding:12px 20px;border-radius:12px;background:#22d3ee;color:#001018;border:none;font-weight:700;cursor:pointer}
+.dice.spin{animation:spin3d .6s cubic-bezier(.2,.8,.2,1)}
+@keyframes spin3d{0%{transform:rotateX(0) rotateY(0)}50%{transform:rotateX(180deg) rotateY(180deg) scale(1.1)}100%{transform:rotateX(360deg) rotateY(360deg)}}
+.dice .face{font-size:64px}
+.roll-btn{padding:12px 20px;border-radius:12px;background:#22d3ee;color:#001018;border:none;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(34,211,238,.3)}
+.roll-btn:hover{filter:brightness(1.1)}
 #result{font-size:28px;font-weight:800;letter-spacing:.5px;text-align:center;min-height:40px;text-shadow:0 0 18px currentColor}
 .panel{background:rgba(18,26,43,.7);border:1px solid #1f2a44;border-radius:16px;padding:14px}
-.shop{display:grid;gap:10px;max-height:60vh;overflow:auto}
+.shop{display:grid;gap:10px;max-height:40vh;overflow:auto}
 .item{display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid #243045;border-radius:12px;background:#0f172a}
 .item button{padding:8px 10px;border-radius:8px;border:none;background:#38bdf8;color:#001018;font-weight:700;cursor:pointer}
 .item button:disabled{opacity:.4;cursor:not-allowed}
-.history{font-family:ui-monospace,Consolas,monospace;font-size:13px;max-height:220px;overflow:auto;display:grid;gap:4px}
+.history{font-family:ui-monospace,Consolas,monospace;font-size:13px;max-height:140px;overflow:auto;display:grid;gap:4px}
+.leaderboard{font-size:13px;display:grid;gap:4px;margin-bottom:10px}
 .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #334155}
-.glow{animation:pop.5s ease}
+.glow{animation:pop .5s ease}
 @keyframes pop{0%{transform:scale(.8);opacity:.2}100%{transform:scale(1);opacity:1}}
-.floating{position:fixed;pointer-events:none;font-weight:800;animation:float 1s ease forwards}
+.floating{position:fixed;pointer-events:none;font-weight:800;animation:float 1s ease forwards;z-index:99}
 @keyframes float{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-60px);opacity:0}}
 footer{padding:10px;text-align:center;opacity:.6;font-size:12px}
 .shop-head{display:flex;justify-content:space-between;align-items:center}
 #collection{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.prestige-btn{padding:6px 10px;border-radius:8px;background:#f59e0b;color:#000;border:none;font-weight:700;cursor:pointer;font-size:12px}
+.prestige-btn:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:900px){main{grid-template-columns:1fr}}

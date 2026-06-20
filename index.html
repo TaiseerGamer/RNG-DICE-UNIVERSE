@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RNG Dice v0.0.1</title>
+  <title>RNG Dice v0.0.2</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,19 +11,24 @@
     <div class="stat"><b>COINS</b><span id="coins">0</span></div>
     <div class="stat"><b>ROLLS</b><span id="rolls">0</span></div>
     <div class="stat"><b>BEST</b><span id="best">-</span></div>
-    <div class="stat"><b>PITY</b><span id="pity">0</span></div>
+    <div class="stat"><b>PRESTIGE</b><span id="prestige">0</span></div>
   </header>
 
   <main>
     <section class="center">
-      <div class="dice" id="dice" title="Click to roll">
-        <div class="face">🎲</div>
+      <div class="dice-wrap">
+        <div class="dice" id="dice" title="Click to roll">
+          <div class="face">🎲</div>
+        </div>
       </div>
       <button class="roll-btn" id="rollBtn">ROLL (Space)</button>
       <div id="result">Click the dice!</div>
 
       <div class="panel" style="width:100%;max-width:560px">
-        <b>Collection</b>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>Collection</b>
+          <button id="prestigeBtn" class="prestige-btn" disabled>Prestige (1M)</button>
+        </div>
         <div id="collection"></div>
       </div>
     </section>
@@ -34,12 +39,14 @@
         <span class="pill" id="mult">x1.0</span>
       </div>
       <div class="shop" id="shop"></div>
+      <h3>Top Rolls</h3>
+      <div class="leaderboard" id="leaderboard"></div>
       <h3>History</h3>
       <div class="history" id="history"></div>
     </aside>
   </main>
 
-  <footer>RNG Dice v0.0.1 — rarer = more coins. Progress saves automatically.</footer>
+  <footer>RNG Dice v0.0.2 — sounds, 3D spin, prestige</footer>
   <script src="script.js"></script>
 </body>
 </html>
